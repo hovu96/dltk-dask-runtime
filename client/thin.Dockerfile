@@ -1,7 +1,8 @@
 FROM daskdev/dask
-RUN pip install --no-cache-dir \
-    Flask \
-    waitress
+#RUN pip install --no-cache-dir \
+#    Flask \
+#    waitress
+RUN conda install Flask waitress
 ENV APP_DIR /app
 WORKDIR ${APP_DIR}
 COPY client/*.py ${APP_DIR}/

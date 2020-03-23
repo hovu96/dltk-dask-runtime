@@ -1,3 +1,3 @@
 FROM hovu96/dltk-dask-runtime:editor-thin
-COPY fat-requirements.txt /
-RUN pip install --no-cache-dir -r /fat-requirements.txt
+COPY fat-conda-forge-requirements.txt /
+RUN conda install -y -c conda-forge --file /fat-conda-forge-requirements.txt
