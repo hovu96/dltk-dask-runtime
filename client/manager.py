@@ -39,6 +39,16 @@ def restart_algorithm():
         lock.release()
 
 
+@app.route('/algo_status', methods=['GET'])
+def algo_status():
+    poll_result = algorithm_process.poll()
+    return Response("%s" % {
+        "poll_result": poll_result,
+        "returncode": algorithm_process.returncode,
+        "pid": algorithm_process.pid,
+    })
+
+
 @app.route('/code', methods=['GET', 'PUT'])
 def program():
     if request.method == 'PUT':
