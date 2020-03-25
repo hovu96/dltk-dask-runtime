@@ -3,6 +3,7 @@ import sys
 import logging
 import os
 import datetime
+import traceback
 from waitress import serve
 from flask import Flask, jsonify, request
 app = Flask(__name__)
@@ -13,21 +14,27 @@ scheduler_host = os.environ.get("SCHEDULER_HOST")
 client = Client(scheduler_host)
 
 
-@app.route('/fit', methods=['POST'])
-def fit():
-    logging.info("fitting ...")
+@app.route('/execute/<method>', methods=['POST'])
+def execute(method):
+    logging.info("executing ...")
     events = request.get_json()
 
-    dltk_code = __import__("dltk_code")
+    try:
+        dltk_code = __import__("dltk_code")
+    except:
+        return "Error importing algo:\n%s" % traceback.format_exc(), 500
 
-    def fit_impl(events):
-        return events
-    if hasattr(dltk_code, "fit"):
-        fit_impl = getattr(dltk_code, "fit")
+    if not hasattr(dltk_code, method):
+        return "Method '%s' not found:\n%s" % method, 400
+    method_impl = getattr(dltk_code, method)
 
-    result = fit_impl(events)
+    try:
+        result = method_impl(events)
+    except:
+        return "Error calling algo method:\n%s" % traceback.format_exc(), 500
+        # return "Error calling algo method", 500
 
-    logging.info("fit done")
+    logging.info("execute finished")
     return jsonify(result)
 
 
