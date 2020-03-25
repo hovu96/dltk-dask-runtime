@@ -15,7 +15,7 @@ client = Client(scheduler_host)
 
 @app.route('/fit', methods=['POST'])
 def fit():
-    logging.info("received /fit request")
+    logging.info("fitting ...")
     events = request.get_json()
 
     dltk_code = __import__("dltk_code")
