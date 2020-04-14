@@ -1,12 +1,15 @@
+import os
+import sys
+
+sys.path.insert(0, os.getenv('DLTK_API_DIR'))
+
 from notebook.services.contents.largefilemanager import LargeFileManager
 import jupyterlab_server
 import tornado.web
-import os
 import logging
 import urllib
 
 # parameters: #https://github.com/jupyter/notebook/blob/master/notebook/notebookapp.py
-
 
 notebook_name = "Algo.ipynb"
 notebook_version_name = "Algo.version"

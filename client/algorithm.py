@@ -1,5 +1,10 @@
-from distributed import Client
 import sys
+import os
+
+sys.path.insert(0, "/code")
+sys.path.insert(0, os.getenv('DLTK_API_DIR'))
+
+from distributed import Client
 import logging
 import os
 import datetime
@@ -7,13 +12,12 @@ import traceback
 import json
 from waitress import serve
 from flask import Flask, jsonify, request, Response
-from execution_context import Context
 import opentracing
 from signalfx_tracing import create_tracer
 import socket
+import dltk_dask
 
 app = Flask(__name__)
-sys.path.insert(0, "/code")
 
 
 def is_truthy(s):
@@ -29,6 +33,7 @@ def execute(method):
     with opentracing.tracer.start_active_span(
         operation_name="method_handler",
         child_of=span_context,
+        ignore_active_span=True,
         tags={
             opentracing.ext.tags.SPAN_KIND: opentracing.ext.tags.SPAN_KIND_RPC_SERVER,
             "host": socket.gethostname(),
@@ -37,16 +42,15 @@ def execute(method):
         scope.span.set_tag("method", method)
 
         response_messages = []
-        response_data = None
+        algo_result = None
         algo_error = None
-        final_response = True
         try:
             if dltk_code_import_error:
                 raise Exception("Error importing algo module: %s" % dltk_code_import_error)
             if not hasattr(dltk_code, method):
                 raise Exception("Method '%s' not found:\n%s" % method)
 
-            ctx = Context()
+            ctx = dltk_dask.Context()
             if "X-Is-Preop" in request.headers:
                 ctx.is_preop = is_truthy(request.headers["X-Is-Preop"])
             if "X-Splunk-Server" in request.headers:
@@ -62,7 +66,7 @@ def execute(method):
 
             with opentracing.tracer.start_active_span("call_algo"):
                 method_impl = getattr(dltk_code, method)
-                response_data, final_response = method_impl(events, ctx)
+                algo_result = method_impl(events, ctx)
         except:
             algo_error = traceback.format_exc()
             logging.warning(algo_error)
@@ -70,11 +74,14 @@ def execute(method):
         with opentracing.tracer.start_active_span("build_response") as scope:
             response_body = {
                 "messages": response_messages,
-                "final": final_response,
                 "error": algo_error,
             }
-            if not response_data is None:
-                response_body["data"] = response_data
+            if algo_result is not None:
+                if algo_result.data is not None:
+                    response_body["data"] = algo_result.data
+                response_body["final"] = algo_result.final
+                if algo_result.wait is not None:
+                    response_body["wait"] = algo_result.wait
             response = Response(json.dumps(response_body))
             response.status_code = 500 if algo_error else 200
             scope.span.set_tag("error", algo_error)
@@ -113,7 +120,7 @@ if __name__ == '__main__':
     jaeger_endpoint = None
     signalfx_agent_host = os.getenv('SIGNALFX_AGENT_HOST')
     if signalfx_agent_host:
-        jaeger_endpoint = 'http://' + signalfx_agent_host + ':9080/v2/trace'
+        jaeger_endpoint = 'http://' + signalfx_agent_host + ':9080/v1/trace'
     endpoint_url_path = "/opentracing/endpoint"
     if os.path.exists(endpoint_url_path):
         with open(endpoint_url_path, 'r') as f:
@@ -122,6 +129,7 @@ if __name__ == '__main__':
         tracer_config["jaeger_endpoint"] = jaeger_endpoint
 
     password_path = "/opentracing/password"
+    jaeger_password = None
     if os.path.exists(password_path):
         with open(password_path, 'r') as f:
             jaeger_password = f.read()
@@ -129,12 +137,14 @@ if __name__ == '__main__':
         tracer_config["jaeger_password"] = jaeger_password
 
     user_path = "/opentracing/user"
+    jaeger_user = None
     if os.path.exists(user_path):
         with open(user_path, 'r') as f:
             jaeger_user = f.read()
     if jaeger_user:
         tracer_config["jaeger_user"] = jaeger_user
 
+    logging.info("tracer_config: %s" % tracer_config)
     tracer = create_tracer(
         config=tracer_config,
         service_name="dltk-dask-client",
