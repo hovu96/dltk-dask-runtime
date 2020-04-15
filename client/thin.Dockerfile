@@ -5,10 +5,10 @@ RUN pip install --no-cache-dir \
     signalfx-tracing
 RUN conda install Flask waitress
 ENV APP_DIR /app
-ENV DLTK_API_DIR /api
-RUN mkdir -p $DLTK_API_DIR
+ENV DLTK_LIB_DIR /dltk_lib
+RUN mkdir -p $DLTK_LIB_DIR
 WORKDIR ${APP_DIR}
-COPY api/ $DLTK_API_DIR/
+COPY lib/ $DLTK_LIB_DIR/
 COPY client/*.py ${APP_DIR}/
 EXPOSE 5001 5002
 ENTRYPOINT ["python", "./manager.py"]

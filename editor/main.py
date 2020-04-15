@@ -1,7 +1,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.getenv('DLTK_API_DIR'))
+sys.path.insert(0, os.getenv('DLTK_LIB_DIR'))
 
 from notebook.services.contents.largefilemanager import LargeFileManager
 import jupyterlab_server

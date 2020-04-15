@@ -2,7 +2,7 @@ import sys
 import os
 
 sys.path.insert(0, "/code")
-sys.path.insert(0, os.getenv('DLTK_API_DIR'))
+sys.path.insert(0, os.getenv('DLTK_LIB_DIR'))
 
 from distributed import Client
 import logging
