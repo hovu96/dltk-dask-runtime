@@ -4,7 +4,7 @@ import os
 sys.path.insert(0, "/code")
 sys.path.insert(0, os.getenv('DLTK_LIB_DIR'))
 
-from distributed import Client
+from distributed import Client  # pylint: disable=import-error
 import logging
 import os
 import datetime
@@ -74,17 +74,20 @@ def execute(method):
         with opentracing.tracer.start_active_span("build_response") as scope:
             response_body = {
                 "messages": response_messages,
-                "error": algo_error,
             }
+            if algo_error:
+                response_body["error"] = algo_error
             if algo_result is not None:
                 if algo_result.data is not None:
                     response_body["data"] = algo_result.data
                 response_body["final"] = algo_result.final
                 if algo_result.wait is not None:
                     response_body["wait"] = algo_result.wait
+                    scope.span.set_tag("wait", algo_result.wait)
             response = Response(json.dumps(response_body))
             response.status_code = 500 if algo_error else 200
-            scope.span.set_tag("error", algo_error)
+            if algo_error:
+                scope.span.set_tag("error", algo_error)
             scope.span.set_tag("status", response.status_code)
             response.headers['Content-Type'] = "application/json"
             logging.info("finished with status code %s" % response.status_code)
