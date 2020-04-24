@@ -3,11 +3,14 @@ import json
 import subprocess
 import sys
 import threading
+import traceback
 import os
 import shutil
 from flask import Flask, request, jsonify, Response
 import http
 import pathlib
+import time
+import signal
 from waitress import serve
 
 app = Flask(__name__)
@@ -24,6 +27,34 @@ code_version_path = os.path.join(code_dir, "dltk_code.version")
 pathlib.Path(code_dir).mkdir(parents=True, exist_ok=True)
 
 
+class WaitForAlgorithm(threading.Thread):
+    def __init__(self, process):
+        threading.Thread.__init__(self)
+        self.process = process
+        self.daemon = True
+        self.start()
+
+    def run(self):
+        try:
+            while True:
+                try:
+                    code = self.process.wait(timeout=0.2)
+                    logging.info("algorithm subprocess existed with code %s" % code)
+                    if code == 15:  # SIGTERM
+                        pass
+                    elif code == 9:  # SIGKILL
+                        pass
+                    elif code == -9:
+                        logging.warning("algorithm ran out of memory")
+                        restart_algorithm()
+                    break
+                except subprocess.TimeoutExpired:
+                    time.sleep(10)
+        except:
+            msg = traceback.format_exc()
+            logging.error("unexpected error in wait for algo thread: %s" % msg)
+
+
 def restart_algorithm():
     lock.acquire()
     try:
@@ -34,6 +65,7 @@ def restart_algorithm():
         logging.info("starting algorithm ...")
         algorithm_process = subprocess.Popen([sys.executable, 'algorithm.py'])
         logging.info("algorithm started")
+        WaitForAlgorithm(algorithm_process)
         return {}
     finally:
         lock.release()
